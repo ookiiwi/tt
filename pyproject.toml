@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tt"
+version="0.0.1"
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3"
+]
