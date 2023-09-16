@@ -1,6 +1,5 @@
 import unittest
-from src.tt.core import *
-from src.tt.core import RegularPolygon
+from tt import *
 
 class CoreFunctionsTest(unittest.TestCase):
     def test_rotatePoint(self):
