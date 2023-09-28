@@ -1,75 +1,144 @@
-import unittest
-from tt import *
+import tt
+from tt.core import Point
+from pytest import approx
 
-class CoreFunctionsTest(unittest.TestCase):
-    def test_rotatePoint(self):
-        p = Point(100, 0)
-        rotP = rotatePoint(p, 90)
+class CircleTest(tt.CircleBase):
+    def __init__(self, radius=200, position=Point(), subdivision=60, batch=None):
+        super().__init__(radius, position, subdivision, batch)
+        self.linkLines = []
 
-        self.assertAlmostEqual(rotP.x, 0)
-        self.assertAlmostEqual(rotP.y, 100)
+    def linkPoints(self, window, factor, batch=None):
+        self.linkLines.clear()
+        return super().linkPoints(window, factor, batch)
 
-    def test_getPointsOnEdge(self):
-        a = Point(0, 100)
-        b = Point(-86.6, 50)
-        expectedPts = [Point(-21.65, 87.5), Point(-43.3, 75), Point(-64.95, 62.5)]
-        pts = getPointsOnEdge(a, b, 3)
+    def _linkPointsDelegate(self, window, ptA, ptB, batch):
+        self.linkLines.append((ptA, ptB))
 
-        for i in range(0, len(pts)):
-            self.assertAlmostEqual(pts[i].x, expectedPts[i].x)
-            self.assertAlmostEqual(pts[i].y, expectedPts[i].y)
+class RegularPolygonTest(tt.RegularPolygonBase):
+    def __init__(self, n_gon=3, radius=200, position=Point(), subdivision=30, batch=None):
+        super().__init__(n_gon, radius, position, subdivision, batch)
 
-    def test_computePaire(self):
-        pass
+        self.shapeLines = []
+        self.linkLines = []
 
-class RegularPolygonTest(unittest.TestCase):
-    def test_build(self):
-        poly = RegularPolygon(3, Point(0,0), 100, 3)
-        expectedPts = [Point(0, 100), Point(-21.65, 62.5), Point(-43.3, 25), Point(-64.95, -12.5)]
-        pts = poly.firstEdgePts
+    def _drawShapeDelegate(self, window, ptA, ptB, batch):
+        self.shapeLines.extend([ptA, ptB])
+    
+    def _linkPointsDelegate(self, window, ptA, ptB, batch):
+        self.linkLines.append([ptA, ptB])
 
-        for i in range(0, len(pts)):
-            self.assertAlmostEqual(pts[i].x, expectedPts[i].x, places=2)
-            self.assertAlmostEqual(pts[i].y, expectedPts[i].y, places=2)
+def test_Circle():
+    circle = CircleTest(radius=1, subdivision=10)
+    circle.linkPoints(None, 2)
+
+    A = Point(0, 1)
+    B = Point(-0.587, 0.809)
+    C = Point(-0.951, 0.309)
+    D = Point(C.x, -C.y)
+    E = Point(B.x, -B.y)
+    F = Point(A.x, -A.y)
+    G = Point(-E.x, E.y)
+    H = Point(-D.x, D.y)
+    I = Point(H.x, -H.y)
+    J = Point(G.x, -G.y)
+
+    expectedLinks = [
+        [B, C],
+        [C, E],
+        [D, G],
+        [E, I],
+        [F, A],
+        [G, C],
+        [H, E],
+        [I, G],
+        [J, I]
+    ]
+
+    links = circle.linkLines
+
+    # not testing drawShape because process delegated to pyglet
+
+    assert len(links) == (circle.subdivision - 1) # subdivision - 1 because first point is always 0
+
+    #links coord
+    for i in range(0, len(links)):
+        for j in range(0, 2):
+            ptA = expectedLinks[i][j]
+            ptB = links[i][j]
+
+            print(i, ptA.x, ptA.y, ptB.x, ptB.y)
+
+            assert ptA.x == approx(ptB.x, rel=1e-2)
+            assert ptA.y == approx(ptB.y, rel=1e-2)
+
+def test_RegularPolygon():
+    poly = RegularPolygonTest(radius=1, subdivision=2)
+    poly.drawShape(None)
+    poly.linkPoints(None, 2)
+
+    A = Point(0, 1)
+    B = Point(-0.866, -0.5)
+    C = Point(-B.x, -0.5)
+    AB1 = Point(-0.288, 0.5)
+    AB2 = Point(-0.577, 0)
+    BC1 = Point(AB1.x, -AB1.y)
+    BC2 = Point(-AB1.x, -AB1.y)
+    AC1 = Point(-AB2.x, AB2.y)
+    AC2 = Point(-AB1.x, AB1.y)
 
 
-        self.assertEqual(poly.angle, 120)
+    def _cmpListVertices(a, b):
+        a.sort(key=lambda e: e.x)
+        b.sort(key=lambda e: e.x)
 
-    def test_getCornerVertices(self):
-        poly = RegularPolygon(3, Point(0,0), 100, 3)
-        vertices = poly.getCornerVertices()
-        expectedPts = [Point(0, 100), Point(-86.6, -50), Point(86.6, -50)]
+        assert len(a) == len(b)
 
-        self.assertEqual(len(vertices), 3)
+        for i in range(0, len(b)):
+            pta = a[i]
+            ptb = b[i]
+
+            assert pta.x == approx(ptb.x, rel=1e-2)
+            assert pta.y == approx(ptb.y, rel=1e-2)
+
+    def edgeTest():
+        expectedTriangleVertices = [A, AB1, AB2]
+        vertices = list(set(poly.edge))
+
+        _cmpListVertices(expectedTriangleVertices, vertices)
+
+    def buildTest():
+        # check triangle points
+        expectedTriangleVertices = [A,B,C]
+        vertices = list(set(poly.shapeLines))
+
+        _cmpListVertices(expectedTriangleVertices, vertices)
+
+    def linkPointsTest():
+        # Points ordered in anti clock order (0 to 2pi)
+        expectedVertices = [[A, A],
+                            [AB1, AB2],
+                            [AB2, BC1],
+                            [B, C],
+                            [BC1, AC2],
+                            [BC2, AB1],
+                            [C, B],
+                            [AC1, BC2],
+                            [AC2, AC1]]
+        
+        vertices = poly.linkLines
+
+        assert len(expectedVertices) == len(vertices)
 
         for i in range(0, len(vertices)):
-            self.assertAlmostEqual(expectedPts[i].x, vertices[i].x, places=2)
-            self.assertAlmostEqual(expectedPts[i].y, vertices[i].y, places=2)
+            for j in range(0, 2):
+                pta = expectedVertices[i][j]
+                ptb = vertices[i][j]
 
-    def test_indexToPoint(self):
-        poly = RegularPolygon(3, Point(0,0), 100, 3)
-        pts = poly.firstEdgePts
+                print(pta.x, pta.y, ptb.x, ptb.y)
 
-        for i in range(0, 3 + 9 + 1):
-            edgeNum = i // (poly.edgeSubdivision+1)
-            p = poly.indexToPoint(i)
-            pFirstEdge = rotatePoint(pts[i%(len(pts))], poly.angle*edgeNum)
+                assert pta.x == approx(ptb.x, rel=1e-2)
+                assert pta.y == approx(ptb.y, rel=1e-2)
 
-            self.assertAlmostEqual(pFirstEdge.x, p.x, places=2)
-            self.assertAlmostEqual(pFirstEdge.y, p.y, places=2)
-
-class CircleTest(unittest.TestCase):
-    def test_indexToPoint(self):
-        circle = Circle(10)
-
-        self.assertEqual(circle.angle, 36)
-
-        for i in range(0, circle.subdivision):
-            p = circle.indexToPoint(i)
-            expectedP = rotatePoint(Point(0, 100), circle.angle*i)
-
-            self.assertAlmostEqual(expectedP.x, p.x)
-            self.assertAlmostEqual(expectedP.y, p.y)
-
-if __name__ == '__main__':
-    unittest.main()
+    edgeTest()
+    buildTest()
+    linkPointsTest()
