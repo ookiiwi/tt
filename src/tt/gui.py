@@ -19,7 +19,7 @@ def selectableButton(isSelected, *args):
         imgui.pop_style_color()
 
 class GUI():
-    def __init__(self, window, onChange, shape=tt.Circle(), factor=2):
+    def __init__(self, window, onChange, shape=tt.Circle(), factor=2, factorBounderies=(2, 100), ngonBounderies=(3, 20), subdivisionBounderies=(10, 500)):
         assert(onChange is not None)
         
         imgui.create_context()
@@ -28,6 +28,9 @@ class GUI():
         self.impl = create_renderer(window)
         self.shape = shape
         self.factor = factor
+        self.factorBounderies = factorBounderies
+        self.ngonBounderies = ngonBounderies
+        self.subdivisionBounderies = subdivisionBounderies
         self.onChange = onChange
 
     def update(self):
@@ -62,16 +65,16 @@ class GUI():
         
         imgui.end_group()
 
-        rvFactor, self.factor = imgui.slider_int("Factor", self.factor, 2, 10)
+        rvFactor, self.factor = imgui.slider_int("Factor", self.factor, *self.factorBounderies)
         if (rvFactor):
             self.onChange(self.factor, GUI_FACTOR)
 
         if (isRegularPolygon()):
-            rv, self.shape.n_gon = imgui.slider_int("n-gon", self.shape.n_gon, 3, 10)
+            rv, self.shape.n_gon = imgui.slider_int("n-gon", self.shape.n_gon, *self.ngonBounderies)
             if (rv):
                 self.onChange(self.shape, GUI_NGON)
 
-        rvSub, self.shape.subdivision = imgui.slider_int("Subdivision", self.shape.subdivision, 0, 100)
+        rvSub, self.shape.subdivision = imgui.slider_int("Subdivision", self.shape.subdivision, *self.subdivisionBounderies)
         if (rvSub):
             self.onChange(self.shape, GUI_SUBDIVISION)
 
